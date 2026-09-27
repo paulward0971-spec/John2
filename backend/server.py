@@ -1182,6 +1182,49 @@ async def gate_recover_owner(payload: RecoverOwnerIn):
     await db.gate_config.update_one({"_id": GATE_CFG_ID}, {"$set": {"has_owner": True}})
     await db.gate_attempts.delete_many({"device_id": payload.device_id, "kind": "recover"})
     return {"token": token, "is_owner": True}
+@api_router.post("/profile/setup")
+async def setup_profile(payload: ProfileSetupIn):
+    session = await _get_session(payload.device_id, payload.token)
+    if not session:
+        raise HTTPException(status_code=401, detail="Unauthorized session")
+    
+    profile_data = {
+        "device_id": payload.device_id,
+        "display_name": payload.display_name,
+        "account_holder": payload.display_name,
+        "account_label": payload.account_label,
+        "balance_cents": 350000,
+        "available_cents": 350000,
+        "monthly_spent_cents": 3632,
+        "card_last4": "4412",
+        "card_holder": payload.display_name,
+        "card_expiry": "07/29",
+        "iban": "IE12 AIBK 9320 0170 1234 56",
+        "bic": "AIBKIE2D",
+        "account_number": "17012345",
+        "sort_code": "93-20-01",
+    }
+    
+    await db.user_profiles.update_one(
+        {"device_id": payload.device_id},
+        {"$set": profile_data},
+        upsert=True
+    )
+    return {"success": True, "profile": profile_data}
+
+
+@api_router.get("/profile")
+async def get_profile(device_id: str, token: str):
+    session = await _get_session(device_id, token)
+    if not session:
+        raise HTTPException(status_code=401, detail="Unauthorized session")
+    
+    user_profile = await db.user_profiles.find_one({"device_id": device_id}, {"_id": 0})
+    
+    if not user_profile:
+        return {"display_name": "", "needs_setup": True}
+        
+    return user_profile
 
 
 app.include_router(api_router)
