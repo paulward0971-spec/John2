@@ -148,9 +148,9 @@ export default function Home() {
             </View>
           )}
         </LinearGradient>
-        {/* Wave under header — bigger swoosh crest continuing the purple */}
+        {/* Wave under header — smooth glossy swoosh flowing into black */}
         <View style={{ marginTop: -1 }}>
-          <HeaderSwoosh width={420} height={90} />
+          <HeaderSwoosh width={420} height={120} />
         </View>
 
         {/* Chip filter row (sticky-ish; kept as chrome above list) */}
@@ -231,7 +231,7 @@ export default function Home() {
         </View>
 
         {/* Zippay promo */}
-        <Pressable style={styles.zippay} testID="zippay-promo">
+        <Pressable style={styles.zippay} testID="zippay-promo" onPress={() => router.push("/transfer/new")}>
           <View style={styles.zippayIcon}>
             <Icon name="arrow-up" color="#fff" size={22} />
           </View>

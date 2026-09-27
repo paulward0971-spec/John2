@@ -1,6 +1,6 @@
 // Cards tab — matches the AIB debit card screenshot exactly
 import React, { useState } from "react";
-import { View, Text, StyleSheet, Pressable, ScrollView } from "react-native";
+import { View, Text, StyleSheet, Pressable, ScrollView, Image } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { useQuery } from "@tanstack/react-query";
@@ -42,6 +42,32 @@ function IceCrystal({ size = 60, color = "#B3E5FC" }) {
   );
 }
 
+// Card face artwork — layered purple chevron swoosh over a white base,
+// matching the AIB debit card design. Switches to icy blues when frozen.
+function CardArt({ frozen }: { frozen: boolean }) {
+  const layers = frozen
+    ? [
+        { t: 20, c: "#E1F5FE" }, { t: 68, c: "#81D4FA" }, { t: 116, c: "#4FC3F7" },
+        { t: 164, c: "#29B6F6" }, { t: 212, c: "#0288D1" },
+      ]
+    : [
+        { t: 20, c: "#EED4F5" }, { t: 68, c: "#CE93D8" }, { t: 116, c: "#AB47BC" },
+        { t: 164, c: "#8E24AA" }, { t: 212, c: "#5F1478" },
+      ];
+  return (
+    <Svg style={StyleSheet.absoluteFill} viewBox="0 0 320 200" preserveAspectRatio="none">
+      <Rect x="0" y="0" width="320" height="200" fill="#F6F4F7" />
+      {/* faint diagonal "sheet" folds on the white left side */}
+      <Path d="M-20 78 L180 8" stroke="#E7E3EA" strokeWidth={12} opacity={0.7} strokeLinecap="round" />
+      <Path d="M-20 128 L160 46" stroke="#ECE9EE" strokeWidth={9} opacity={0.6} strokeLinecap="round" />
+      {/* nested left-pointing chevrons, light -> dark */}
+      {layers.map((l, i) => (
+        <Path key={i} d={`M320 0 L${l.t + 95} 0 L${l.t} 100 L${l.t + 95} 200 L320 200 Z`} fill={l.c} />
+      ))}
+    </Svg>
+  );
+}
+
 export default function Cards() {
   const insets = useSafeAreaInsets();
   const [frozen, setFrozen] = useState(false);
@@ -60,24 +86,13 @@ export default function Cards() {
 
         {/* The card */}
         <View style={styles.cardWrap}>
-          <LinearGradient
-            colors={frozen ? ["#B3E5FC", "#81D4FA", "#4FC3F7", "#0288D1"] : ["#F5F5F5", "#F5F5F5", "#8E24AA", "#5F1478"]}
-            locations={[0, 0.45, 0.75, 1]}
-            start={{ x: 0.2, y: 0.2 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.card}
-          >
-            {/* AIB logo top-left */}
-            <View style={{ position: "absolute", top: 16, left: 16 }}>
-              <AibLogo size={70} showText radius={12} />
-            </View>
-            {/* VISA top-right */}
-            <View style={{ position: "absolute", top: 22, right: 22, alignItems: "flex-end" }}>
-              <Text style={styles.visa}>VISA</Text>
-              <Text style={styles.visaSub}>Debit</Text>
-            </View>
-            {/* Diagonal white sheets */}
-            <View style={styles.cardFold} />
+          <View style={styles.card}>
+            {/* User's exact card artwork */}
+            <Image
+              source={require("../../assets/images/card-user.png")}
+              style={{ width: "100%", height: "100%" }}
+              resizeMode="cover"
+            />
             {/* Frozen overlay */}
             {frozen && (
               <View style={styles.frozenOverlay} pointerEvents="none">
@@ -85,7 +100,7 @@ export default function Cards() {
                 <Text style={styles.frozenText}>Card frozen</Text>
               </View>
             )}
-          </LinearGradient>
+          </View>
 
           <Text style={styles.accountUnder}>{profile.data?.account_label || "AIB BANK ACCOUNT-017"}</Text>
 
@@ -144,7 +159,7 @@ const styles = StyleSheet.create({
   topTitle: { color: "#fff", fontSize: 18, fontWeight: "800" },
   helpBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.surfaceSecondary, alignItems: "center", justifyContent: "center" },
   cardWrap: { alignItems: "center", marginTop: 8 },
-  card: { width: "88%", aspectRatio: 1.6, borderRadius: 20, overflow: "hidden" },
+  card: { width: "88%", aspectRatio: 1.6, borderRadius: 20, overflow: "hidden", backgroundColor: "#000" },
   visa: { color: "#fff", fontSize: 28, fontWeight: "900", letterSpacing: 2 },
   visaSub: { color: "#fff", fontSize: 14, fontWeight: "600" },
   cardFold: { position: "absolute", left: -60, bottom: -40, width: 260, height: 260, backgroundColor: "rgba(255,255,255,0.35)", transform: [{ rotate: "-25deg" }], borderRadius: 30 },

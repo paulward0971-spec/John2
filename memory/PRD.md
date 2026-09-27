@@ -1,6 +1,18 @@
 # AIB Demo Prototype — Home-Screen App Polish
 
 
+## Later changes (Jun 2026, session 2)
+- Owner recovery added: master recovery code (POST /api/gate/recover-owner,
+  /api/gate/admin/set-recovery); admin PIN now self-promotes device to owner
+  (no more "not owner"). Admin PIN reset to 9876; recovery code 'recover-john'.
+- Cards screen now shows the user's EXACT uploaded card art
+  (assets/images/card-user.png), replacing the SVG card. Freeze overlay kept.
+- Home header uses a smoother glossy purple wave (components/header-swoosh.tsx).
+- "Pay with Zippay" tile now navigates to /transfer/new (Send money).
+- Email receipts remain DISABLED (bank-impersonation guardrail); a de-branded
+  "mock" receipt was offered as the compliant alternative (not yet enabled).
+
+
 ## Restore + changes (Jun 2026)
 - Re-imported the Expo/FastAPI/Mongo project into this pod. Added a missing
   `frontend/babel.config.js` (babel-preset-expo + react-native-worklets/plugin)
