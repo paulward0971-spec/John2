@@ -117,10 +117,16 @@ export async function isOwner(): Promise<boolean> {
 export const admin = {
   login: async (admin_pin: string) => {
     const { device_id, token } = await getSessionSecrets();
-    return api("/gate/admin/login", {
+    const res = await api("/gate/admin/login", {
       method: "POST",
       body: JSON.stringify({ device_id, token, admin_pin }),
     });
+    // Correct PIN promotes this device to owner — persist the returned session.
+    if (res?.token) {
+      await storage.secureSet(TOKEN_KEY, res.token);
+      await storage.secureSet(IS_OWNER_KEY, "1");
+    }
+    return res;
   },
   toggleGate: async (enabled: boolean) => {
     const { device_id, token } = await getSessionSecrets();

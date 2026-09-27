@@ -957,12 +957,25 @@ async def gate_redeem(payload: RedeemIn):
 @api_router.post("/gate/admin/login")
 async def gate_admin_login(payload: AdminLoginIn):
     cfg = await _gate_cfg()
-    s = await _get_session(payload.device_id, payload.token)
-    if not s or not s.get("is_owner"):
-        raise HTTPException(status_code=403, detail="Not the owner device")
     if payload.admin_pin != cfg.get("admin_pin", DEFAULT_ADMIN_PIN):
         raise HTTPException(status_code=401, detail="Wrong admin PIN")
-    return {"ok": True}
+    # The correct admin PIN proves ownership. Ensure this device has an owner
+    # session so it never gets stuck on "not the owner device" (common on web
+    # when local storage / the owner token is lost).
+    s = await _get_session(payload.device_id, payload.token)
+    token = payload.token
+    if not s or not s.get("is_owner"):
+        token = _new_token()
+        await db.device_sessions.insert_one({
+            "device_id": payload.device_id,
+            "token": token,
+            "is_owner": True,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "revoked": False,
+            "invite_pin": None,
+        })
+        await db.gate_config.update_one({"_id": GATE_CFG_ID}, {"$set": {"has_owner": True}})
+    return {"ok": True, "token": token, "is_owner": True}
 
 
 @api_router.post("/gate/admin/set-pin")
