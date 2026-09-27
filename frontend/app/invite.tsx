@@ -142,11 +142,31 @@ export default function Invite() {
           <View style={styles.recoverBox}>
             <Text style={styles.recoverTitle}>Owner recovery</Text>
             <TextInput
-              value={recoveryCode}
-              onChangeText={(t) => {
-                setRecoverErr(null);
-                setRecoveryCode(t);
-              }}
+  value={recoveryCode}
+  onChangeText={(t) => {
+    setRecoverErr(null);
+    setRecoveryCode(t);
+  }}
+  autoFocus={true}
+  showSoftInputOnFocus={true}
+  style={styles.recoverInput}
+  placeholder="Recovery code"
+  placeholderTextColor="#555"
+  autoCapitalize="none"
+  autoCorrect={false}
+  secureTextEntry
+  testID="invite-recovery-input"
+/>
+
+              
+              
+                
+                
+                
+  
+
+
+ 
               style={styles.recoverInput}
               placeholder="Recovery code"
               placeholderTextColor="#555"
