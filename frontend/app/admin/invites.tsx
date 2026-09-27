@@ -12,7 +12,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Clipboard from "expo-clipboard";
 import * as Haptics from "expo-haptics";
 import { colors } from "@/src/theme";
-import { admin } from "@/src/gate";
+import { admin, recoverOwner } from "@/src/gate";
 
 type PinRow = {
   pin: string;
@@ -37,6 +37,11 @@ export default function InviteAdmin() {
   const [label, setLabel] = useState("");
   const [showChangePin, setShowChangePin] = useState(false);
   const [newAdminPin, setNewAdminPin] = useState("");
+  const [recoveryCode, setRecoveryCode] = useState("");
+  const [recoverErr, setRecoverErr] = useState<string | null>(null);
+  const [recoverBusy, setRecoverBusy] = useState(false);
+  const [recoverySet, setRecoverySet] = useState(false);
+  const [newRecovery, setNewRecovery] = useState("");
 
   const unlock = async () => {
     setPinErr(null);
@@ -54,8 +59,46 @@ export default function InviteAdmin() {
     try {
       const [cfg, rows] = await Promise.all([admin.config(), admin.listPins()]);
       setGateOn(!!cfg?.enabled);
+      setRecoverySet(!!cfg?.recovery_set);
       setPins(rows as PinRow[]);
     } catch {}
+  };
+
+  const doRecover = async () => {
+    setRecoverErr(null);
+    if ((recoveryCode || "").trim().length < 6) {
+      setRecoverErr("Enter your recovery code");
+      return;
+    }
+    setRecoverBusy(true);
+    try {
+      await recoverOwner(recoveryCode.trim());
+      setRecoveryCode("");
+      setUnlocked(true);
+      await refresh();
+    } catch (e: any) {
+      setRecoverErr(e?.message || "Invalid recovery code");
+    } finally {
+      setRecoverBusy(false);
+    }
+  };
+
+  const saveRecovery = async () => {
+    if ((newRecovery || "").trim().length < 6) {
+      flashMsg("Recovery code must be at least 6 characters");
+      return;
+    }
+    setBusy(true);
+    try {
+      await admin.setRecoveryCode(newRecovery.trim());
+      setNewRecovery("");
+      setRecoverySet(true);
+      flashMsg("Recovery code saved");
+    } catch (e: any) {
+      flashMsg(e?.message || "Failed");
+    } finally {
+      setBusy(false);
+    }
   };
 
   const flashMsg = (m: string) => {
@@ -178,6 +221,35 @@ export default function InviteAdmin() {
             <Text style={styles.primaryText}>Unlock</Text>
           </Pressable>
           <Text style={styles.hint}>Default is 9876. You can change it after unlocking.</Text>
+
+          <View style={styles.recoverDivider} />
+          <Text style={styles.recoverTitle}>Locked out / new device?</Text>
+          <Text style={styles.recoverBody}>
+            Enter your master recovery code to restore owner access on this device.
+          </Text>
+          <TextInput
+            value={recoveryCode}
+            onChangeText={(t) => {
+              setRecoverErr(null);
+              setRecoveryCode(t);
+            }}
+            style={styles.recoverInput}
+            placeholder="Recovery code"
+            placeholderTextColor="#555"
+            autoCapitalize="none"
+            autoCorrect={false}
+            secureTextEntry
+            testID="recovery-code-input"
+          />
+          {recoverErr ? <Text style={styles.err}>{recoverErr}</Text> : null}
+          <Pressable
+            style={[styles.secondaryWide, recoverBusy && { opacity: 0.5 }]}
+            disabled={recoverBusy}
+            onPress={doRecover}
+            testID="recover-owner-btn"
+          >
+            <Text style={styles.secondaryText}>{recoverBusy ? "Checking…" : "Recover owner access"}</Text>
+          </Pressable>
         </View>
       </View>
     );
@@ -300,6 +372,33 @@ export default function InviteAdmin() {
         <View style={{ height: 24 }} />
 
         <View style={styles.card}>
+          <Text style={styles.rowTitle}>Owner recovery code</Text>
+          <Text style={styles.rowBody}>
+            {recoverySet
+              ? "A recovery code is set. Use it on any device to reclaim owner access if you're ever locked out."
+              : "Not set yet. Set a recovery code so you can never get locked out — you'll need it if you switch phones or clear your browser."}
+          </Text>
+          <TextInput
+            value={newRecovery}
+            onChangeText={setNewRecovery}
+            style={styles.labelInput}
+            placeholder={recoverySet ? "Enter a new recovery code" : "Choose a recovery code (min 6 chars)"}
+            placeholderTextColor="#555"
+            autoCapitalize="none"
+            autoCorrect={false}
+            testID="set-recovery-input"
+          />
+          <Pressable
+            style={[styles.primary, busy && { opacity: 0.6 }]}
+            onPress={saveRecovery}
+            disabled={busy}
+            testID="save-recovery-btn"
+          >
+            <Text style={styles.primaryText}>{recoverySet ? "Update recovery code" : "Set recovery code"}</Text>
+          </Pressable>
+        </View>
+
+        <View style={styles.card}>
           <Text style={styles.rowTitle}>Change admin PIN</Text>
           {!showChangePin ? (
             <Pressable style={styles.secondary} onPress={() => setShowChangePin(true)}>
@@ -396,4 +495,9 @@ const styles = StyleSheet.create({
   pinInput: { backgroundColor: colors.surfaceSecondary, color: "#fff", fontSize: 32, letterSpacing: 20, textAlign: "center", padding: 16, borderRadius: 12, width: 220, fontWeight: "900" },
   err: { color: colors.error, marginTop: 10, fontWeight: "700" },
   hint: { color: colors.muted, fontSize: 12, marginTop: 20, textAlign: "center" },
+  recoverDivider: { height: 1, backgroundColor: colors.border, alignSelf: "stretch", marginTop: 28, marginBottom: 20 },
+  recoverTitle: { color: "#fff", fontSize: 15, fontWeight: "900", textAlign: "center" },
+  recoverBody: { color: colors.muted, fontSize: 12, textAlign: "center", marginTop: 6, lineHeight: 17, paddingHorizontal: 6 },
+  recoverInput: { backgroundColor: colors.surfaceSecondary, color: "#fff", fontSize: 16, textAlign: "center", padding: 14, borderRadius: 12, alignSelf: "stretch", marginTop: 14, borderWidth: 1, borderColor: colors.border },
+  secondaryWide: { alignSelf: "stretch", borderWidth: 1, borderColor: colors.brandPrimary, padding: 14, borderRadius: 999, alignItems: "center", marginTop: 12 },
 });

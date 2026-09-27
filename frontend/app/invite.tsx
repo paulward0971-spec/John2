@@ -3,12 +3,12 @@
 // success the PIN is burnt server-side and a device token is stored, so
 // they never see this screen again on this phone.
 import React, { useState } from "react";
-import { View, Text, StyleSheet, Pressable, Dimensions, Platform } from "react-native";
+import { View, Text, StyleSheet, Pressable, Dimensions, Platform, TextInput } from "react-native";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
 import Animated, { useAnimatedStyle, useSharedValue, withSequence, withTiming } from "react-native-reanimated";
-import { redeemPin } from "@/src/gate";
+import { redeemPin, recoverOwner } from "@/src/gate";
 
 const PIN_LEN = 4;
 const { width, height } = Dimensions.get("window");
@@ -22,7 +22,30 @@ export default function Invite() {
   const [pin, setPin] = useState("");
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [showRecover, setShowRecover] = useState(false);
+  const [recoveryCode, setRecoveryCode] = useState("");
+  const [recoverErr, setRecoverErr] = useState<string | null>(null);
+  const [recoverBusy, setRecoverBusy] = useState(false);
   const shake = useSharedValue(0);
+
+  const doRecover = async () => {
+    setRecoverErr(null);
+    if ((recoveryCode || "").trim().length < 6) {
+      setRecoverErr("Enter your recovery code");
+      return;
+    }
+    setRecoverBusy(true);
+    try {
+      await recoverOwner(recoveryCode.trim());
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      router.replace("/passcode");
+    } catch (e: any) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
+      setRecoverErr(e?.message || "Invalid recovery code");
+    } finally {
+      setRecoverBusy(false);
+    }
+  };
 
   const doShake = () => {
     shake.value = withSequence(
@@ -106,9 +129,46 @@ export default function Invite() {
       </View>
 
       <View style={styles.footer}>
-        <Text style={styles.footerText}>
-          Don't have a code? Ask the person who shared this app with you for a new invite code.
-        </Text>
+        {!showRecover ? (
+          <>
+            <Text style={styles.footerText}>
+              Don't have a code? Ask the person who shared this app with you for a new invite code.
+            </Text>
+            <Pressable onPress={() => setShowRecover(true)} testID="show-recover-btn" hitSlop={10}>
+              <Text style={styles.recoverLink}>I'm the owner — recover access</Text>
+            </Pressable>
+          </>
+        ) : (
+          <View style={styles.recoverBox}>
+            <Text style={styles.recoverTitle}>Owner recovery</Text>
+            <TextInput
+              value={recoveryCode}
+              onChangeText={(t) => {
+                setRecoverErr(null);
+                setRecoveryCode(t);
+              }}
+              style={styles.recoverInput}
+              placeholder="Recovery code"
+              placeholderTextColor="#555"
+              autoCapitalize="none"
+              autoCorrect={false}
+              secureTextEntry
+              testID="invite-recovery-input"
+            />
+            {recoverErr ? <Text style={styles.err}>{recoverErr}</Text> : null}
+            <Pressable
+              style={[styles.recoverBtn, recoverBusy && { opacity: 0.5 }]}
+              disabled={recoverBusy}
+              onPress={doRecover}
+              testID="invite-recover-btn"
+            >
+              <Text style={styles.recoverBtnText}>{recoverBusy ? "Checking…" : "Restore owner access"}</Text>
+            </Pressable>
+            <Pressable onPress={() => setShowRecover(false)} hitSlop={10}>
+              <Text style={styles.recoverCancel}>Cancel</Text>
+            </Pressable>
+          </View>
+        )}
       </View>
     </View>
   );
@@ -132,4 +192,11 @@ const styles = StyleSheet.create({
   delText: { color: "#8E8E93", fontSize: 24 },
   footer: { paddingBottom: 8, paddingHorizontal: 16 },
   footerText: { color: "#7A7A7A", fontSize: 12, textAlign: "center", lineHeight: 18 },
+  recoverLink: { color: "#E1BEE7", fontSize: 13, fontWeight: "800", textAlign: "center", marginTop: 12 },
+  recoverBox: { backgroundColor: "#101010", borderWidth: 1, borderColor: "#2A2A2A", borderRadius: 14, padding: 16 },
+  recoverTitle: { color: "#fff", fontSize: 15, fontWeight: "900", textAlign: "center" },
+  recoverInput: { backgroundColor: "#1A1A1A", color: "#fff", fontSize: 16, textAlign: "center", padding: 12, borderRadius: 10, marginTop: 12, borderWidth: 1, borderColor: "#2A2A2A" },
+  recoverBtn: { backgroundColor: "#8E24AA", padding: 13, borderRadius: 999, alignItems: "center", marginTop: 12 },
+  recoverBtnText: { color: "#fff", fontSize: 14, fontWeight: "900" },
+  recoverCancel: { color: "#8E8E93", fontSize: 13, fontWeight: "700", textAlign: "center", marginTop: 12 },
 });

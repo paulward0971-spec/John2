@@ -150,21 +150,21 @@ export default function Settings() {
           />
         </View>
 
-        {isOwnerDevice ? (
-          <Pressable
-            style={styles.navRow}
-            onPress={() => router.push("/admin/invites")}
-            testID="manage-invites-btn"
-          >
-            <View style={{ flex: 1 }}>
-              <Text style={styles.navTitle}>Manage invite codes</Text>
-              <Text style={styles.navBody}>
-                Owner only. Generate one-time 4-digit codes to let people in.
-              </Text>
-            </View>
-            <Text style={styles.navChev}>›</Text>
-          </Pressable>
-        ) : null}
+        <Pressable
+          style={styles.navRow}
+          onPress={() => router.push("/admin/invites")}
+          testID="manage-invites-btn"
+        >
+          <View style={{ flex: 1 }}>
+            <Text style={styles.navTitle}>Invite codes & owner access</Text>
+            <Text style={styles.navBody}>
+              {isOwnerDevice
+                ? "Generate one-time invite codes, toggle the gate, and set your recovery code."
+                : "Enter your admin PIN, or use your recovery code to restore owner access on this device."}
+            </Text>
+          </View>
+          <Text style={styles.navChev}>›</Text>
+        </Pressable>
 
         <Section title="Profile" />
         <Field label="Display name" value={profile.display_name} onChangeText={(v) => set("display_name", v)} testID="f-display" />

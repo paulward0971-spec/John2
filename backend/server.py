@@ -1031,7 +1031,73 @@ async def gate_admin_revoke(payload: RevokePinIn):
 async def gate_admin_config(device_id: str, token: str):
     await _require_owner(device_id, token)
     cfg = await _gate_cfg()
-    return {"enabled": cfg.get("enabled", False), "admin_pin_set": cfg.get("admin_pin") != DEFAULT_ADMIN_PIN}
+    return {
+        "enabled": cfg.get("enabled", False),
+        "admin_pin_set": cfg.get("admin_pin") != DEFAULT_ADMIN_PIN,
+        "recovery_set": bool(cfg.get("recovery_hash")),
+    }
+
+
+def _hash_code(code: str) -> str:
+    return hashlib.sha256(code.strip().encode("utf-8")).hexdigest()
+
+
+class SetRecoveryIn(BaseModel):
+    device_id: str
+    token: str
+    recovery_code: str
+
+
+class RecoverOwnerIn(BaseModel):
+    device_id: str
+    recovery_code: str
+
+
+@api_router.post("/gate/admin/set-recovery")
+async def gate_set_recovery(payload: SetRecoveryIn):
+    """Owner sets/updates the master recovery code. Stored only as a hash."""
+    await _require_owner(payload.device_id, payload.token)
+    code = (payload.recovery_code or "").strip()
+    if len(code) < 6:
+        raise HTTPException(status_code=400, detail="Recovery code must be at least 6 characters")
+    await db.gate_config.update_one({"_id": GATE_CFG_ID}, {"$set": {"recovery_hash": _hash_code(code)}})
+    return {"ok": True}
+
+
+@api_router.post("/gate/recover-owner")
+async def gate_recover_owner(payload: RecoverOwnerIn):
+    """Reclaim owner access on ANY device using the master recovery code.
+    This is the anti-lockout escape hatch: prove you know the recovery code and
+    this device becomes an owner device with a fresh session token."""
+    now = datetime.now(timezone.utc)
+    window_start = now - timedelta(minutes=15)
+    recent = await db.gate_attempts.count_documents({
+        "device_id": payload.device_id,
+        "kind": "recover",
+        "created_at": {"$gte": window_start.isoformat()},
+    })
+    if recent >= 5:
+        raise HTTPException(status_code=429, detail="Too many attempts. Try again in 15 minutes.")
+    await db.gate_attempts.insert_one({"device_id": payload.device_id, "kind": "recover", "created_at": now.isoformat()})
+
+    cfg = await _gate_cfg()
+    stored = cfg.get("recovery_hash")
+    code = (payload.recovery_code or "").strip()
+    if not stored or _hash_code(code) != stored:
+        raise HTTPException(status_code=401, detail="Invalid recovery code")
+
+    token = _new_token()
+    await db.device_sessions.insert_one({
+        "device_id": payload.device_id,
+        "token": token,
+        "is_owner": True,
+        "created_at": now.isoformat(),
+        "revoked": False,
+        "invite_pin": None,
+    })
+    await db.gate_config.update_one({"_id": GATE_CFG_ID}, {"$set": {"has_owner": True}})
+    await db.gate_attempts.delete_many({"device_id": payload.device_id, "kind": "recover"})
+    return {"token": token, "is_owner": True}
 
 
 app.include_router(api_router)

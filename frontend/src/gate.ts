@@ -91,6 +91,18 @@ export async function redeemPin(pin: string): Promise<{ token: string }> {
   return res;
 }
 
+// Master recovery: reclaim owner access on this device using the recovery code.
+export async function recoverOwner(recovery_code: string): Promise<{ token: string }> {
+  const device_id = await getDeviceId();
+  const res = await api("/gate/recover-owner", {
+    method: "POST",
+    body: JSON.stringify({ device_id, recovery_code }),
+  });
+  await storage.secureSet(TOKEN_KEY, res.token);
+  await storage.secureSet(IS_OWNER_KEY, "1");
+  return res;
+}
+
 export async function getSessionSecrets() {
   const device_id = await getDeviceId();
   const token = (await storage.secureGet<string>(TOKEN_KEY, "")) || "";
@@ -140,6 +152,13 @@ export const admin = {
     return api("/gate/admin/set-pin", {
       method: "POST",
       body: JSON.stringify({ device_id, token, new_pin }),
+    });
+  },
+  setRecoveryCode: async (recovery_code: string) => {
+    const { device_id, token } = await getSessionSecrets();
+    return api("/gate/admin/set-recovery", {
+      method: "POST",
+      body: JSON.stringify({ device_id, token, recovery_code }),
     });
   },
   config: async () => {
