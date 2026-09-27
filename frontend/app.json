@@ -1,0 +1,57 @@
+{
+  "expo": {
+    "name": "AIB",
+    "slug": "frontend",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "aib",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#4A0E5C",
+    "primaryColor": "#8E24AA",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.emergent.aibcleandemo.utnmlt"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "backgroundColor": "#4A0E5C"
+      },
+      "package": "com.emergent.aibcleandemo.utnmlt"
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single",
+      "favicon": "./assets/images/favicon.png",
+      "themeColor": "#8E24AA",
+      "backgroundColor": "#4A0E5C",
+      "name": "AIB",
+      "shortName": "AIB",
+      "display": "standalone",
+      "orientation": "portrait",
+      "startUrl": "/",
+      "description": "AIB mobile banking demo"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/splash-image.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#671085"
+        }
+      ],
+      "expo-font",
+      "expo-image",
+      "expo-secure-store",
+      "expo-web-browser",
+      "expo-status-bar"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
