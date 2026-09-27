@@ -1,0 +1,19 @@
+{
+  "summary": "Verified admin-PIN self-promote bug fix end-to-end. Backend pytest 4/4 passed (test_admin_login_selfpromote.py): wrong PIN -> 401 'Wrong admin PIN'; correct PIN '9876' from fresh non-owner device_id + empty token -> 200 {ok, token, is_owner:true} with NO 'Not the owner device' leak; the returned session verifies as is_owner via /api/gate/verify-device; owner can immediately call /api/gate/admin/generate to mint a 4-digit invite; /api/gate/status remains enabled:false. Frontend Playwright 4/4 passed on https://remake-deploy.preview.emergentagent.com : (1) /admin/invites with cleared storage -> admin-pin-input=9876 + admin-unlock reveals gate-toggle & generate-btn with no 'not owner' error; (2) generate-btn produces 4-digit codes (e.g. 0562/7143/7492); (3) storage cleared again -> recovery-code-input='recover-john' + recover-owner-btn opens admin panel; (4) root -> pac-screen, keys 1..6 loads home 'Hi John' with €3475.00 account. DB left as required: admin_pin=9876, gate enabled=false, recovery='recover-john' (has_owner is now true as expected side-effect of admin-PIN/recovery use, per request note).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": ["/app/backend/tests/test_admin_login_selfpromote.py", "/app/backend/tests/test_owner_recovery.py", "/app/test_reports/pytest/pytest_results.xml"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "gate_admin_login correctly re-uses existing owner session if present and only mints a new one on self-promote; behaviour is idempotent.",
+    "Consider rate-limiting /api/gate/admin/login to mitigate PIN brute-force since a correct PIN now grants ownership on any device (defence-in-depth)."
+  ],
+  "updated_files": ["/app/backend/tests/test_admin_login_selfpromote.py"],
+  "success_rate": {"backend": "100% (4/4)", "frontend": "100% (4/4)"},
+  "test_credentials": "Admin PIN: 9876; Recovery: recover-john; PAC: any 6 digits (used 1..6). Left unchanged.",
+  "seed_data_creation": "Only transient TEST_-prefixed device_ids created via admin-PIN self-promote (owner device_sessions rows).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Bug 'Not the owner device' when entering admin PIN on fresh browser is fixed. gate_admin_login self-promotes device to owner when PIN matches. Gate remains OFF; has_owner=true is expected. Reusable test file: /app/backend/tests/test_admin_login_selfpromote.py.",
+  "rca of the issue": "Previously POST /api/gate/admin/login required the calling device to already be the registered owner device (checked _require_owner before verifying the PIN). On web, if localStorage was cleared or the user opened a new browser, the owner token was lost and the endpoint returned 403 'Not the owner device' even with the correct PIN. Fix: verify admin PIN first; if correct and the device isn't already an owner session, insert a new owner device_session and set has_owner=true, then return {ok, token, is_owner:true}. Frontend gate.ts persists the returned token + IS_OWNER flag so subsequent owner-only calls (config, listPins, generate) succeed."
+}
