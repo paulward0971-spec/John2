@@ -1,5 +1,5 @@
-// API helpers for AIB Demo Prototype
-const BASE = process.env.EXPO_PUBLIC_BACKEND_URL || "";
+// API helpers for AIB Demo 
+const BASE = "https://john2-mmlx.onrender.com";
 
 async function req(path: string, opts: RequestInit = {}) {
   const res = await fetch(`${BASE}/api${path}`, {
