@@ -854,8 +854,8 @@ async def create_budget(body: BudgetCreate):
     await db.budgets.insert_one(dict(doc))  # copy so Mongo doesn't mutate our response
     return {**doc, "spent_cents": 0, "percent": 0.0}
 
-@api_router.delete("/budgets/{bid}")
-async def delete_budget(bid: str):
+@api_router.post("/budgets")
+async def create_budget(body: BudgetCreate):
     r = await db.budgets.delete_one({"id": bid})
     if r.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Budget not found")
