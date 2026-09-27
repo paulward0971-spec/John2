@@ -73,6 +73,18 @@ class ProfileUpdate(BaseModel):
     sort_code: Optional[str] = None
     email: Optional[EmailStr] = None
     passcode: Optional[str] = None
+class ProfileUpdate(BaseModel):
+    display_name: Optional[str] = None
+    account_holder: Optional[str] = None
+    # ... (all your existing ProfileUpdate fields) ...
+    passcode: Optional[str] = None
+
+# --- Paste ProfileSetupIn right here ---
+class ProfileSetupIn(BaseModel):
+    device_id: str
+    token: str
+    display_name: str
+    account_label: Optional[str] = "AIB BANK ACCOUNT-001"
 
 class Transaction(BaseModel):
     id: str
