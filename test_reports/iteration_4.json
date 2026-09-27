@@ -1,0 +1,20 @@
+{
+  "summary": "Verified Send-money BIC + email-receipt feature end-to-end. Backend pytest 6/6 passed (test_transfer_bic_email.py): (1) POST /api/transfers/prepare with manual bic='BOFIIE2DXXX' + receipt_email='delivered@resend.dev' returns 200 with bic uppercased & persisted; (2) prepare without bic auto-detects 'AIBKIE2D' from AIBK IBAN IE29AIBK93115212345678; (3) POST /api/transfers/confirm (payload key: transfer_id) returns status='complete', email_sent=true, bic override preserved; (4) _build_transfer_email_html and _build_email_linked_html both use 'Demo Wallet' brand header, include a 'MOCK / DEMO' banner and a small 'mock' footer, and no 'AIB' text leaks into the email header block (AIB appears only later as a data field 'Bank'); (5) backend/.env has EMAIL_FROM_NAME='Demo Wallet (Mock)'; (6) subjects 'Demo Wallet — Mock transfer receipt (demo)' and 'Demo Wallet — Email linked (mock/demo)' present in server.py with no AIB-branded subject. Frontend Playwright on tunnel URL: PAC screen loads, keys 1..6 -> Home 'Hi John'. /transfer/new renders; typing IBAN IE29AIBK93115212345678 auto-fills BIC 'AIBKIE2D' in [data-testid=input-bic] which is editable (overrode to 'BOFIIE2DXXX'). [data-testid=input-receipt-email] present and accepts 'delivered@resend.dev'. Clicking [data-testid=continue-btn] navigates to /transfer/confirm?id=DW-<id>; [data-testid=submit-btn] ('Send €1.00') completes the transfer and lands on /transfer/success with Status=Complete, BIC=BOFIIE2DXXX preserved, and 'A receipt has been emailed to you.' notice.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": ["/app/backend/tests/test_transfer_bic_email.py", "/app/test_reports/pytest/pytest_results.xml"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py is now ~1186 lines; consider splitting the email HTML builders and the ABI/LLM system prompt blocks into dedicated modules (e.g. backend/emails.py, backend/ai_prompts.py) for maintainability.",
+    "TransferConfirmRequest uses field name 'transfer_id' while the prepared transfer response returns key 'id' and 'reference'. Frontend api.ts already maps this correctly, but consider aliasing (Field(alias='id')) or documenting to avoid future integration confusion.",
+    "_assert_safe_email is a good G2/G3 guardrail; consider unit-testing it directly (currently only exercised implicitly via send_email at runtime)."
+  ],
+  "updated_files": ["/app/backend/tests/test_transfer_bic_email.py"],
+  "success_rate": {"backend": "100% (6/6)", "frontend": "100% (all core flows)"},
+  "test_credentials": "PAC: any 6 digits (used 1..6). Receipt email: delivered@resend.dev. Test IBAN: IE29AIBK93115212345678.",
+  "seed_data_creation": "3 transient TEST-prefixed transfers created via /api/transfers/prepare and /api/transfers/confirm (references DW-<id>). Confirming one deducted €1.00 from demo balance as expected.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Send-money BIC override + email receipt feature is fully working on the tunnel URL. Backend confirm endpoint requires JSON key 'transfer_id' (NOT 'id'). Submit button on /transfer/confirm has data-testid='submit-btn'. Compliance: email header brand is 'Demo Wallet', MOCK banner + mock footer present, EMAIL_FROM_NAME='Demo Wallet (Mock)'. The in-app screen header 'AIB / Transfer Confirmation' is unchanged and correct (this is an AIB Demo app in-product UI, distinct from the outbound email brand). Reusable regression test: /app/backend/tests/test_transfer_bic_email.py.",
+  "rca of the issue": "N/A — no bugs found."
+}

@@ -1,6 +1,18 @@
 # AIB Demo Prototype — Home-Screen App Polish
 
 
+## Session 3 (Jun 2026)
+- Deployment readiness: fixed blockers — added Expo env vars (tunnel subdomain,
+  packager hostname/proxy, fast resolver) to frontend/.env; added .limit() to
+  transactions/budgets queries; installed @expo/ngrok and switched frontend
+  "start" to `expo start --tunnel --port 3000`. deployment_agent: PASS.
+- Send money: added editable BIC/SWIFT field (auto-fills from IBAN, overridable)
+  and an "Email receipt to" field.
+- Email receipts ENABLED but COMPLIANT: de-branded sender "Demo Wallet (Mock)",
+  MOCK/DEMO banner + small mock footer. Refused to send as "AIB" (real-bank
+  impersonation) even with a demo label. EMERGENT_EMAIL_KEY wired; Resend 202 OK.
+
+
 ## Later changes (Jun 2026, session 2)
 - Owner recovery added: master recovery code (POST /api/gate/recover-owner,
   /api/gate/admin/set-recovery); admin PIN now self-promotes device to owner
