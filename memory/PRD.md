@@ -1,5 +1,21 @@
 # AIB Demo Prototype — Home-Screen App Polish
 
+
+## Restore + changes (Jun 2026)
+- Re-imported the Expo/FastAPI/Mongo project into this pod. Added a missing
+  `frontend/babel.config.js` (babel-preset-expo + react-native-worklets/plugin)
+  that was causing frozen animations / blank screens.
+- Web screen transitions set to `animation: "none"` (native phone app unchanged).
+- Backend env: `EMERGENT_LLM_KEY` (Abi/Claude), `MONGO_URL`, `DB_NAME`.
+- SAFETY: outbound bank-branded ("AIB") confirmation emails are DISABLED
+  (`EMAIL_ENABLED = False` in server.py) — impersonating a real bank is a
+  prohibited fraud/phishing pattern. All other endpoints still function.
+- Chat (Abi) screen redesigned: cleaner header w/ avatar + online status,
+  tidy user/assistant bubbles, timestamps, light **bold**/bullet markdown,
+  animated typing dots. Same AIB purple palette + same splash/load-up.
+  Conversation now persists per session (loads history on open); web `?sid=`
+  deep-link supported.
+
 ## Current state
 Working AIB banking demo (Expo Router + FastAPI + MongoDB) that installs as a
 real-feeling PWA via iOS/Android "Add to Home Screen". Includes:

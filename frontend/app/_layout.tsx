@@ -153,7 +153,7 @@ export default function RootLayout() {
                 screenOptions={{
                   headerShown: false,
                   contentStyle: { backgroundColor: "#0A0A0A" },
-                  animation: "fade",
+                  animation: Platform.OS === "web" ? "none" : "fade",
                 }}
               />
             </KeyboardProvider>
