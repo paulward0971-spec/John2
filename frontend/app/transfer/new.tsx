@@ -1,24 +1,31 @@
 // New IBAN transfer entry — recent payees, live bank detection, amount, ref
 import React, { useEffect, useMemo, useState } from "react";
 import { View, Text, StyleSheet, TextInput, Pressable, ScrollView, KeyboardAvoidingView, Platform, ActivityIndicator } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery } from "@tanstack/react-query";
 import { colors, spacing } from "@/src/theme";
 import { api, formatIban } from "@/src/api";
 import { BankLogo } from "@/src/components/bank-logo";
 
+const CUR_SYMBOLS: Record<string, string> = {
+  EUR: "€", GBP: "£", USD: "$", CHF: "CHF ", PLN: "zł", SEK: "kr", NOK: "kr",
+  DKK: "kr", CZK: "Kč", HUF: "Ft", RON: "lei", BGN: "лв", CAD: "C$", AUD: "A$",
+  JPY: "¥", AED: "AED ", TRY: "₺",
+};
+
 export default function NewTransfer() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const [name, setName] = useState("");
-  const [iban, setIban] = useState("");
-  const [amount, setAmount] = useState("");
+  const params = useLocalSearchParams<{ iban?: string; amount?: string; name?: string }>();
+  const [name, setName] = useState(params.name ? String(params.name) : "");
+  const [iban, setIban] = useState(params.iban ? String(params.iban) : "");
+  const [amount, setAmount] = useState(params.amount ? String(params.amount) : "");
   const [ref, setRef] = useState("");
   const [bic, setBic] = useState("");
   const [bicTouched, setBicTouched] = useState(false);
   const [receiptEmail, setReceiptEmail] = useState("");
-  const [bank, setBank] = useState<{ bank_name: string; bic: string; slug?: string; is_valid: boolean } | null>(null);
+  const [bank, setBank] = useState<{ bank_name: string; bic: string; slug?: string; is_valid: boolean; currency?: string; fx_rate?: number; is_foreign?: boolean; country_name?: string } | null>(null);
   const [checking, setChecking] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -142,18 +149,21 @@ export default function NewTransfer() {
                     {bank?.bank_name || "Detecting bank…"}
                   </Text>
                   {bank?.bic ? <Text style={styles.bankBic}>{bank.bic}</Text> : null}
+                  {bank?.is_foreign ? (
+                    <Text style={styles.bankForeign} testID="foreign-badge">🌍 Foreign bank · sends in {bank?.currency}</Text>
+                  ) : null}
                 </View>
               </>
             )}
           </View>
         )}
 
-        <Text style={styles.label}>BIC / SWIFT (optional)</Text>
+        <Text style={styles.label}>BIC / SWIFT</Text>
         <TextInput
           style={styles.input}
           value={bic}
           onChangeText={(v) => { setBicTouched(true); setBic(v.toUpperCase()); }}
-          placeholder="Auto-filled from IBAN — edit to override"
+          placeholder="BIC / SWIFT"
           placeholderTextColor={colors.muted}
           autoCapitalize="characters"
           autoCorrect={false}
@@ -171,6 +181,19 @@ export default function NewTransfer() {
           keyboardType="decimal-pad"
           testID="input-amount"
         />
+
+        {bank?.is_foreign && bank?.currency && bank.currency !== "EUR" && Number(amount) > 0 ? (
+          <View style={styles.fxBox} testID="fx-preview">
+            <Text style={styles.fxTitle}>Currency conversion</Text>
+            <Text style={styles.fxAmount}>
+              Recipient gets ≈ {CUR_SYMBOLS[bank.currency] || ""}{(Number(amount) * (bank?.fx_rate || 1)).toFixed(2)} {bank.currency}
+            </Text>
+            <Text style={styles.fxSub}>
+              You send €{Number(amount).toFixed(2)}  ·  1 EUR = {bank?.fx_rate} {bank.currency}
+            </Text>
+          </View>
+        ) : null}
+
 
         <Text style={styles.label}>Reference (optional)</Text>
         <TextInput
@@ -231,6 +254,11 @@ const styles = StyleSheet.create({
   bankDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.brandTertiary },
   bankName: { color: "#fff", fontSize: 14, fontWeight: "800" },
   bankBic: { color: colors.muted, fontSize: 12, fontWeight: "700", marginTop: 2 },
+  bankForeign: { color: colors.brandTertiary, fontSize: 12, fontWeight: "800", marginTop: 3 },
+  fxBox: { marginTop: 14, backgroundColor: colors.surfaceSecondary, borderRadius: 12, padding: 14, borderLeftWidth: 3, borderLeftColor: colors.brandTertiary },
+  fxTitle: { color: colors.muted, fontSize: 11, fontWeight: "800", letterSpacing: 0.5, textTransform: "uppercase" },
+  fxAmount: { color: "#fff", fontSize: 18, fontWeight: "900", marginTop: 6 },
+  fxSub: { color: colors.muted, fontSize: 12, marginTop: 4 },
   emailHint: { color: colors.muted, fontSize: 11, marginTop: 8, lineHeight: 16 },
   cta: { marginTop: 30, backgroundColor: colors.brandPrimary, padding: 16, borderRadius: 999, alignItems: "center" },
   ctaText: { color: "#fff", fontSize: 16, fontWeight: "800" },

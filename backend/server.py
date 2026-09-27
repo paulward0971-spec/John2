@@ -111,6 +111,11 @@ class Transfer(BaseModel):
     created_at: str
     note: Optional[str] = None
     email_sent: bool = False
+    currency: str = "EUR"
+    fx_rate: float = 1.0
+    converted_amount_cents: Optional[int] = None
+    is_foreign: bool = False
+    country_name: Optional[str] = None
 
 
 class Payee(BaseModel):
@@ -163,28 +168,64 @@ BANK_CODES = {
 # Backwards-compatible alias
 IRISH_BANKS = {k: (v[0], v[1]) for k, v in BANK_CODES.items()}
 
+# Country -> ISO currency (SEPA/euro countries use EUR; others their own)
+CURRENCY_BY_COUNTRY = {
+    "IE": "EUR", "DE": "EUR", "FR": "EUR", "ES": "EUR", "IT": "EUR", "BE": "EUR",
+    "PT": "EUR", "NL": "EUR", "AT": "EUR", "FI": "EUR", "GR": "EUR", "LU": "EUR",
+    "SK": "EUR", "SI": "EUR", "LT": "EUR", "LV": "EUR", "EE": "EUR", "CY": "EUR", "MT": "EUR",
+    "GB": "GBP", "CH": "CHF", "PL": "PLN", "SE": "SEK", "NO": "NOK", "DK": "DKK",
+    "CZ": "CZK", "HU": "HUF", "RO": "RON", "BG": "BGN", "HR": "EUR",
+    "US": "USD", "CA": "CAD", "AU": "AUD", "JP": "JPY", "AE": "AED", "TR": "TRY",
+}
+# Static demo FX rates: 1 EUR -> X currency (for prototype conversion only)
+FX_RATES = {
+    "EUR": 1.0, "GBP": 0.855, "USD": 1.08, "CHF": 0.96, "PLN": 4.32, "SEK": 11.35,
+    "NOK": 11.55, "DKK": 7.46, "CZK": 25.2, "HUF": 395.0, "RON": 4.97, "BGN": 1.96,
+    "CAD": 1.47, "AUD": 1.63, "JPY": 168.0, "AED": 3.97, "TRY": 34.8,
+}
+CURRENCY_SYMBOLS = {
+    "EUR": "\u20ac", "GBP": "\u00a3", "USD": "$", "CHF": "CHF ", "PLN": "z\u0142",
+    "SEK": "kr", "NOK": "kr", "DKK": "kr", "CZK": "K\u010d", "HUF": "Ft", "RON": "lei",
+    "BGN": "\u043b\u0432", "CAD": "C$", "AUD": "A$", "JPY": "\u00a5", "AED": "AED ", "TRY": "\u20ba",
+}
+COUNTRY_NAMES = {
+    "IE": "Ireland", "GB": "United Kingdom", "DE": "Germany", "FR": "France",
+    "ES": "Spain", "IT": "Italy", "BE": "Belgium", "PT": "Portugal", "NL": "Netherlands",
+    "AT": "Austria", "FI": "Finland", "GR": "Greece", "LU": "Luxembourg", "CH": "Switzerland",
+    "PL": "Poland", "SE": "Sweden", "NO": "Norway", "DK": "Denmark", "CZ": "Czechia",
+    "HU": "Hungary", "RO": "Romania", "BG": "Bulgaria", "US": "United States",
+    "CA": "Canada", "AU": "Australia", "JP": "Japan", "AE": "United Arab Emirates", "TR": "Türkiye",
+}
+
+
 def detect_bank(iban: str) -> dict:
     cleaned = re.sub(r"\s+", "", iban).upper()
     if len(cleaned) < 8:
-        return {"bank_code": "", "bank_name": "", "bic": "", "slug": "", "is_valid": False}
+        return {"bank_code": "", "bank_name": "", "bic": "", "slug": "", "is_valid": False,
+                "country": "", "country_name": "", "currency": "EUR", "fx_rate": 1.0, "is_foreign": False}
     country = cleaned[:2]
     bank_code = cleaned[4:8]  # standard IBAN bank-identifier slice for IE/GB/NL
-    # Expected valid IBAN length by country
     LENGTHS = {"IE": 22, "GB": 22, "NL": 18, "DE": 22, "FR": 27, "ES": 24, "IT": 27, "BE": 16, "PT": 25}
     expected = LENGTHS.get(country)
     is_valid = expected is None or len(cleaned) == expected
-    if bank_code in BANK_CODES:
+    currency = CURRENCY_BY_COUNTRY.get(country, "EUR")
+    fx_rate = FX_RATES.get(currency, 1.0)
+    country_name = COUNTRY_NAMES.get(country, "")
+    is_foreign = country != "" and country != "IE"
+
+    base = {
+        "bank_code": bank_code, "country": country, "country_name": country_name,
+        "currency": currency, "fx_rate": fx_rate, "is_foreign": is_foreign, "is_valid": is_valid,
+    }
+    if not is_foreign and bank_code in BANK_CODES:
         name, bic, slug = BANK_CODES[bank_code]
-        return {"bank_code": bank_code, "bank_name": name, "bic": bic, "slug": slug, "is_valid": is_valid}
-    # Unknown code — return a country-friendly label so the UI still has
-    # something to display next to the IBAN.
-    country_name = {
-        "IE": "Irish bank", "GB": "UK bank", "NL": "Dutch bank",
-        "DE": "German bank", "FR": "French bank", "ES": "Spanish bank",
-        "IT": "Italian bank", "BE": "Belgian bank", "PT": "Portuguese bank",
-    }.get(country, "International bank")
-    label = f"{country_name} ({bank_code})" if bank_code.isalpha() else country_name
-    return {"bank_code": bank_code, "bank_name": label, "bic": "", "slug": "", "is_valid": is_valid}
+        return {**base, "bank_name": name, "bic": bic, "slug": slug}
+    # Foreign or unknown Irish code -> friendly country label, generic logo
+    if is_foreign:
+        label = f"{country_name} bank" if country_name else "Foreign bank"
+    else:
+        label = f"Irish bank ({bank_code})" if bank_code.isalpha() else "Irish bank"
+    return {**base, "bank_name": label, "bic": "", "slug": ""}
 
 
 # ---------- Email guardrail gate ----------
@@ -375,12 +416,15 @@ async def prepare_transfer(req: TransferRequest):
     bank = detect_bank(req.iban)
     ref = f"DW-{random.randint(100000000, 999999999)}"
     manual_bic = (req.bic or "").strip().upper() or None
+    currency = bank.get("currency", "EUR")
+    fx_rate = float(bank.get("fx_rate", 1.0))
+    converted = req.amount_cents if currency == "EUR" else int(round(req.amount_cents * fx_rate))
     transfer = {
         "id": ref,
         "reference": ref,
         "recipient_name": req.recipient_name,
         "iban": re.sub(r"\s+", "", req.iban).upper(),
-        "bic": manual_bic or bank["bic"] or "AIBKIE2D",
+        "bic": manual_bic or bank["bic"] or ("" if bank.get("is_foreign") else "AIBKIE2D"),
         "bank_name": bank["bank_name"],
         "bank_slug": bank.get("slug", ""),
         "amount_cents": req.amount_cents,
@@ -390,6 +434,11 @@ async def prepare_transfer(req: TransferRequest):
         "email_sent": False,
         "send_email_requested": req.send_email,
         "recipient_email": req.receipt_email or profile.get("email"),
+        "currency": currency,
+        "fx_rate": fx_rate,
+        "converted_amount_cents": converted,
+        "is_foreign": bool(bank.get("is_foreign", False)),
+        "country_name": bank.get("country_name", ""),
     }
     await db.transfers.insert_one(transfer)
     return Transfer(**{k: v for k, v in transfer.items() if k in Transfer.model_fields})

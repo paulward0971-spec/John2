@@ -10,7 +10,7 @@ import { colors } from "@/src/theme";
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const LOGOS: Record<string, number> = {
-  aib: require("../../assets/images/icon.png"),
+  aib: require("../../assets/images/banks/aib.png"),
   boi: require("../../assets/images/banks/boi.png"),
   ptsb: require("../../assets/images/banks/ptsb.png"),
   ebs: require("../../assets/images/banks/ebs.png"),

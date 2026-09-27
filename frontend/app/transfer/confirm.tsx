@@ -11,6 +11,12 @@ import { colors } from "@/src/theme";
 import { api, formatEuros, formatIban } from "@/src/api";
 import { BankLogo } from "@/src/components/bank-logo";
 
+const CUR_SYMBOLS: Record<string, string> = {
+  EUR: "€", GBP: "£", USD: "$", CHF: "CHF ", PLN: "zł", SEK: "kr", NOK: "kr",
+  DKK: "kr", CZK: "Kč", HUF: "Ft", RON: "lei", BGN: "лв", CAD: "C$", AUD: "A$",
+  JPY: "¥", AED: "AED ", TRY: "₺",
+};
+
 function VerifiedTick() {
   return (
     <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
@@ -80,6 +86,11 @@ export default function Confirm() {
             </View>
           </View>
           <Text style={styles.amount}>{formatEuros(t.amount_cents)}</Text>
+          {t.is_foreign && t.currency && t.currency !== "EUR" ? (
+            <Text style={styles.converted} testID="confirm-converted">
+              ≈ {CUR_SYMBOLS[t.currency] || ""}{((t.converted_amount_cents ?? t.amount_cents) / 100).toFixed(2)} {t.currency}  ·  1 EUR = {t.fx_rate} {t.currency}
+            </Text>
+          ) : null}
         </View>
 
         <View style={styles.card}>
@@ -87,6 +98,9 @@ export default function Confirm() {
           <Row label="IBAN" value={formatIban(t.iban)} />
           <Row label="BIC Code" value={t.bic} />
           <Row label="Bank" value={t.bank_name} slug={t.bank_slug} />
+          {t.is_foreign && t.currency && t.currency !== "EUR" ? (
+            <Row label="Recipient gets" value={`${CUR_SYMBOLS[t.currency] || ""}${((t.converted_amount_cents ?? t.amount_cents) / 100).toFixed(2)} ${t.currency}`} />
+          ) : null}
           <Row label="From" value={profile.account_holder} />
           <Row label="From IBAN" value={formatIban(profile.iban.replace(/\s/g, ""))} />
           <Row label="Reference" value={t.note || "—"} last />
@@ -135,6 +149,7 @@ const styles = StyleSheet.create({
   amountHeader: { flexDirection: "row", alignItems: "center", gap: 12 },
   amountLabel: { color: "#EAD6F0", fontSize: 12, fontWeight: "700" },
   amount: { color: "#fff", fontSize: 42, fontWeight: "900", marginTop: 14 },
+  converted: { color: "#EAD6F0", fontSize: 14, fontWeight: "800", marginTop: 8 },
   bank: { color: "#fff", fontSize: 15, fontWeight: "800", marginTop: 2 },
   card: { backgroundColor: colors.surfaceSecondary, borderRadius: 16, padding: 4, marginTop: 20 },
   row: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 14, paddingHorizontal: 14, borderBottomWidth: 0.5, borderBottomColor: colors.border, gap: 12 },
