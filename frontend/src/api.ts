@@ -26,6 +26,8 @@ export const api = {
     iban: string;
     amount_cents: number;
     reference?: string;
+    bic?: string;
+    receipt_email?: string;
     send_email?: boolean;
   }) => req("/transfers/prepare", { method: "POST", body: JSON.stringify(payload) }),
   confirmTransfer: (transfer_id: string) =>

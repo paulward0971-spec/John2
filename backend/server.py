@@ -28,14 +28,12 @@ mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
 
-# Email
-# NOTE: Outbound email is intentionally DISABLED. The original app sent
-# bank-branded ("AIB") confirmation emails to arbitrary recipients, which
-# impersonates a real bank and is a prohibited fraud/phishing pattern.
+# Email — outbound emails are DE-BRANDED, clearly-labelled MOCK/DEMO receipts.
+# We do NOT impersonate any real bank (no "AIB" sender identity in emails).
 EMAIL_BASE_URL = "https://integrations.emergentagent.com"
 EMAIL_KEY = os.environ.get("EMERGENT_EMAIL_KEY")
-EMAIL_FROM_NAME = os.environ.get("EMAIL_FROM_NAME", "Demo Wallet")
-EMAIL_ENABLED = False
+EMAIL_FROM_NAME = os.environ.get("EMAIL_FROM_NAME", "Demo Wallet (Mock)")
+EMAIL_ENABLED = True
 
 app = FastAPI(title="AIB Demo Prototype API")
 api_router = APIRouter(prefix="/api")
@@ -93,6 +91,8 @@ class TransferRequest(BaseModel):
     iban: str
     amount_cents: int
     reference: Optional[str] = None
+    bic: Optional[str] = None
+    receipt_email: Optional[EmailStr] = None
     send_email: bool = True
 
 class TransferConfirm(BaseModel):
@@ -253,9 +253,8 @@ def _assert_safe_email(subject: str, html: str) -> None:
                 raise ValueError(f"Anchor text {m.group(1)!r} != real host {real!r} (G3)")
 
 async def send_email(*, to: str, subject: str, html: str) -> Optional[str]:
-    # Disabled: refuse to send bank-impersonating emails to arbitrary recipients.
     if not EMAIL_ENABLED:
-        logger.info("Email sending is disabled (impersonation guardrail); skipping send.")
+        logger.info("Email sending is disabled; skipping send.")
         return None
     _assert_safe_email(subject, html)
     payload = {"to": [to], "subject": subject, "html": html, "from_name": EMAIL_FROM_NAME}
@@ -319,8 +318,8 @@ async def verify_email(req: VerifyEmailRequest):
     await get_or_create_profile()
     await db.profile.update_one({"_id": "singleton"}, {"$set": {"email": req.email}})
     profile = await get_or_create_profile()
-    ref = f"AIB-EL-{random.randint(100000000, 999999999)}"
-    subject = "AIB - Email Successfully Linked"
+    ref = f"DW-EL-{random.randint(100000000, 999999999)}"
+    subject = "Demo Wallet — Email linked (mock/demo)"
     html = _build_email_linked_html(profile, ref, req.email)
     email_id = await send_email(to=req.email, subject=subject, html=html)
     return {"status": "success", "reference": ref, "email_id": email_id}
@@ -349,7 +348,7 @@ async def seed_transactions():
 @api_router.get("/transactions", response_model=List[Transaction])
 async def list_transactions():
     await seed_transactions()
-    cursor = db.transactions.find({}, {"_id": 0}).sort("date", -1)
+    cursor = db.transactions.find({}, {"_id": 0}).sort("date", -1).limit(100)
     return [Transaction(**t) async for t in cursor]
 
 @api_router.get("/transactions/{txn_id}", response_model=Transaction)
@@ -374,13 +373,14 @@ async def prepare_transfer(req: TransferRequest):
     if req.amount_cents <= 0:
         raise HTTPException(status_code=400, detail="Amount must be greater than zero")
     bank = detect_bank(req.iban)
-    ref = f"AIB-{random.randint(100000000, 999999999)}"
+    ref = f"DW-{random.randint(100000000, 999999999)}"
+    manual_bic = (req.bic or "").strip().upper() or None
     transfer = {
         "id": ref,
         "reference": ref,
         "recipient_name": req.recipient_name,
         "iban": re.sub(r"\s+", "", req.iban).upper(),
-        "bic": bank["bic"] or "AIBKIE2D",
+        "bic": manual_bic or bank["bic"] or "AIBKIE2D",
         "bank_name": bank["bank_name"],
         "bank_slug": bank.get("slug", ""),
         "amount_cents": req.amount_cents,
@@ -389,7 +389,7 @@ async def prepare_transfer(req: TransferRequest):
         "note": req.reference,
         "email_sent": False,
         "send_email_requested": req.send_email,
-        "recipient_email": profile.get("email"),
+        "recipient_email": req.receipt_email or profile.get("email"),
     }
     await db.transfers.insert_one(transfer)
     return Transfer(**{k: v for k, v in transfer.items() if k in Transfer.model_fields})
@@ -433,7 +433,7 @@ async def confirm_transfer(payload: TransferConfirm):
     email_sent = False
     recipient_email = profile.get("email")
     if t.get("send_email_requested") and recipient_email:
-        subject = "AIB Transfer Confirmation"
+        subject = "Demo Wallet — Mock transfer receipt (demo)"
         html = _build_transfer_email_html(t, profile)
         try:
             await send_email(to=recipient_email, subject=subject, html=html)
@@ -489,14 +489,19 @@ def _build_transfer_email_html(t: dict, profile: dict) -> str:
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#000000;font-family:Arial,Helvetica,sans-serif;color:#ffffff">
   <tr><td align="center" style="padding:24px">
     <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;background:#0F0F0F;border-radius:20px;overflow:hidden;border:1px solid #222">
-      <tr><td style="background:linear-gradient(135deg,#4A0E5C,#7B1FA2);padding:32px 26px">
-        <div style="font-size:34px;font-weight:900;color:#ffffff;letter-spacing:1px">AIB</div>
-        <div style="font-size:16px;color:#ffffff;margin-top:6px;opacity:0.9">Transfer Confirmation</div>
+      <tr><td style="background:linear-gradient(135deg,#4A0E5C,#7B1FA2);padding:28px 26px">
+        <div style="font-size:26px;font-weight:900;color:#ffffff;letter-spacing:0.5px">Demo Wallet</div>
+        <div style="font-size:14px;color:#ffffff;margin-top:6px;opacity:0.9">Mock transfer receipt</div>
+      </td></tr>
+      <tr><td style="padding:16px 24px 0 24px">
+        <div style="background:#FFF3CD;color:#7A5B00;border:1px solid #E0C15A;border-radius:10px;padding:12px 14px;font-size:13px;font-weight:700;line-height:19px">
+          &#9888; MOCK / DEMO &mdash; This is a simulated receipt from a demo app. It is NOT a real payment and NOT a message from any bank.
+        </div>
       </td></tr>
       <tr><td style="padding:28px 24px 8px 24px;text-align:center">
         <div style="display:inline-block;width:64px;height:64px;line-height:64px;border-radius:32px;background:rgba(76,175,80,0.15);color:#4CAF50;font-size:36px;font-weight:800">&#10003;</div>
-        <div style="font-size:24px;font-weight:900;color:#ffffff;margin-top:14px">Transfer Successful</div>
-        <div style="font-size:14px;color:#B5B5B5;margin-top:8px;line-height:20px">Your SEPA transfer has been processed successfully</div>
+        <div style="font-size:24px;font-weight:900;color:#ffffff;margin-top:14px">Simulated transfer complete</div>
+        <div style="font-size:14px;color:#B5B5B5;margin-top:8px;line-height:20px">This is a demo transfer generated by the Demo Wallet prototype</div>
       </td></tr>
       <tr><td style="padding:8px 24px">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
@@ -525,7 +530,7 @@ def _build_transfer_email_html(t: dict, profile: dict) -> str:
         {"<div style='margin-top:14px;color:#8E8E93;font-size:13px'>Note: " + note + "</div>" if note else ""}
       </td></tr>
       <tr><td style="padding:0 24px 24px 24px;text-align:left">
-        <div style="color:#3A3A3A;font-size:11px">This is an automated message from your AIB account.</div>
+        <div style="color:#6A6A6A;font-size:11px">mock &mdash; not a real payment or bank communication. Demo Wallet is a prototype/demo app.</div>
       </td></tr>
     </table>
   </td></tr>
@@ -548,14 +553,19 @@ def _build_email_linked_html(profile: dict, ref: str, email: str) -> str:
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#000000;font-family:Arial,Helvetica,sans-serif;color:#ffffff">
   <tr><td align="center" style="padding:24px">
     <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;background:#0F0F0F;border-radius:20px;overflow:hidden;border:1px solid #222">
-      <tr><td style="background:linear-gradient(135deg,#4A0E5C,#7B1FA2);padding:32px 26px">
-        <div style="font-size:34px;font-weight:900;color:#ffffff;letter-spacing:1px">AIB</div>
-        <div style="font-size:16px;color:#ffffff;margin-top:6px;opacity:0.9">Email Successfully Linked</div>
+      <tr><td style="background:linear-gradient(135deg,#4A0E5C,#7B1FA2);padding:28px 26px">
+        <div style="font-size:26px;font-weight:900;color:#ffffff;letter-spacing:0.5px">Demo Wallet</div>
+        <div style="font-size:14px;color:#ffffff;margin-top:6px;opacity:0.9">Email linked (mock/demo)</div>
+      </td></tr>
+      <tr><td style="padding:16px 24px 0 24px">
+        <div style="background:#FFF3CD;color:#7A5B00;border:1px solid #E0C15A;border-radius:10px;padding:12px 14px;font-size:13px;font-weight:700;line-height:19px">
+          &#9888; MOCK / DEMO &mdash; simulated confirmation from a demo app. NOT from any bank.
+        </div>
       </td></tr>
       <tr><td style="padding:28px 24px 8px 24px;text-align:center">
         <div style="display:inline-block;width:64px;height:64px;line-height:64px;border-radius:32px;background:rgba(76,175,80,0.15);color:#4CAF50;font-size:36px;font-weight:800">&#10003;</div>
         <div style="font-size:24px;font-weight:900;color:#ffffff;margin-top:14px">Confirmation</div>
-        <div style="font-size:14px;color:#B5B5B5;margin-top:8px;line-height:20px">Your email address has been linked to your AIB account</div>
+        <div style="font-size:14px;color:#B5B5B5;margin-top:8px;line-height:20px">Your email has been linked to your Demo Wallet demo account</div>
       </td></tr>
       <tr><td style="padding:8px 24px">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
@@ -583,7 +593,7 @@ def _build_email_linked_html(profile: dict, ref: str, email: str) -> str:
         </div>
       </td></tr>
       <tr><td style="padding:0 24px 24px 24px;text-align:left">
-        <div style="color:#3A3A3A;font-size:11px">This is an automated message from your AIB account.</div>
+        <div style="color:#6A6A6A;font-size:11px">mock &mdash; not a real payment or bank communication. Demo Wallet is a prototype/demo app.</div>
       </td></tr>
     </table>
   </td></tr>
@@ -748,13 +758,13 @@ async def clear_chat(session_id: str):
 # ---------- Budgets ----------
 @api_router.get("/budgets")
 async def list_budgets():
-    cursor = db.budgets.find({}, {"_id": 0}).sort("created_at", -1)
+    cursor = db.budgets.find({}, {"_id": 0}).sort("created_at", -1).limit(50)
     budgets = [b async for b in cursor]
     # Compute month-to-date spend per budget
     now = datetime.now(timezone.utc)
     month_start_iso = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0).isoformat()
     txns = []
-    async for t in db.transactions.find({"date": {"$gte": month_start_iso}, "status": {"$ne": "declined"}}, {"_id": 0}):
+    async for t in db.transactions.find({"date": {"$gte": month_start_iso}, "status": {"$ne": "declined"}}, {"_id": 0}).limit(1000):
         txns.append(t)
     result = []
     for b in budgets:

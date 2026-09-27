@@ -15,6 +15,9 @@ export default function NewTransfer() {
   const [iban, setIban] = useState("");
   const [amount, setAmount] = useState("");
   const [ref, setRef] = useState("");
+  const [bic, setBic] = useState("");
+  const [bicTouched, setBicTouched] = useState(false);
+  const [receiptEmail, setReceiptEmail] = useState("");
   const [bank, setBank] = useState<{ bank_name: string; bic: string; slug?: string; is_valid: boolean } | null>(null);
   const [checking, setChecking] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -38,6 +41,11 @@ export default function NewTransfer() {
 
   const canContinue = name.trim().length > 1 && cleanedIban.length >= 15 && Number(amount) > 0;
 
+  // Prefill BIC from the detected bank until the user edits it manually.
+  useEffect(() => {
+    if (bank?.bic && !bicTouched) setBic(bank.bic);
+  }, [bank, bicTouched]);
+
   const usePayee = (p: any) => {
     setName(p.name);
     setIban(p.iban);
@@ -52,6 +60,8 @@ export default function NewTransfer() {
         iban: cleanedIban,
         amount_cents: cents,
         reference: ref || undefined,
+        bic: bic.trim() ? bic.trim().toUpperCase() : undefined,
+        receipt_email: receiptEmail.includes("@") ? receiptEmail.trim() : undefined,
       });
       router.push({ pathname: "/transfer/confirm", params: { id: t.id } });
     } catch (e: any) {
@@ -138,6 +148,19 @@ export default function NewTransfer() {
           </View>
         )}
 
+        <Text style={styles.label}>BIC / SWIFT (optional)</Text>
+        <TextInput
+          style={styles.input}
+          value={bic}
+          onChangeText={(v) => { setBicTouched(true); setBic(v.toUpperCase()); }}
+          placeholder="Auto-filled from IBAN — edit to override"
+          placeholderTextColor={colors.muted}
+          autoCapitalize="characters"
+          autoCorrect={false}
+          maxLength={11}
+          testID="input-bic"
+        />
+
         <Text style={styles.label}>Amount (EUR)</Text>
         <TextInput
           style={styles.input}
@@ -159,6 +182,20 @@ export default function NewTransfer() {
           maxLength={35}
           testID="input-ref"
         />
+
+        <Text style={styles.label}>Email receipt to (optional)</Text>
+        <TextInput
+          style={styles.input}
+          value={receiptEmail}
+          onChangeText={setReceiptEmail}
+          placeholder="you@example.com"
+          placeholderTextColor={colors.muted}
+          keyboardType="email-address"
+          autoCapitalize="none"
+          autoCorrect={false}
+          testID="input-receipt-email"
+        />
+        <Text style={styles.emailHint}>We'll email a clearly-labelled MOCK demo receipt (not a real payment).</Text>
 
         {err ? <Text style={styles.err}>{err}</Text> : null}
 
@@ -194,6 +231,7 @@ const styles = StyleSheet.create({
   bankDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.brandTertiary },
   bankName: { color: "#fff", fontSize: 14, fontWeight: "800" },
   bankBic: { color: colors.muted, fontSize: 12, fontWeight: "700", marginTop: 2 },
+  emailHint: { color: colors.muted, fontSize: 11, marginTop: 8, lineHeight: 16 },
   cta: { marginTop: 30, backgroundColor: colors.brandPrimary, padding: 16, borderRadius: 999, alignItems: "center" },
   ctaText: { color: "#fff", fontSize: 16, fontWeight: "800" },
   err: { color: colors.error, marginTop: 12 },
