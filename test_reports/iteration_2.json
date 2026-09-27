@@ -1,0 +1,16 @@
+{
+  "summary": "Full backend + frontend verification of the Owner Recovery feature. Backend pytest (7/7 passed) covers: recover-owner wrong code -> 401; correct 'recover-john' -> 200 with token+is_owner; admin/config -> recovery_set:true; admin/set-recovery too-short (<6) -> 400; owner-session required (bogus creds -> 401/403); resetting recovery to same value succeeds and remains valid; gate/status regression (enabled:false, has_owner:true). Frontend Playwright tests (4/4 passed): (1) /admin/invites lock screen: entering 'recover-john' in recovery-code-input + clicking recover-owner-btn reveals gate-toggle and generate-btn. (2) After unlock, set-recovery-input + save-recovery-btn with 'recover-john' shows success (no error, page text contains 'saved'/'recovery code'). (3) /invite: show-recover-btn reveals invite-recovery-input; entering 'recover-john' + invite-recover-btn navigates to pac-screen. (4) Root routes to pac-screen; entering 6 digits via pac-key-1..6 loads main app ('Hi John', €3475.00). Recovery code left as 'recover-john' (confirmed via final /api/gate/recover-owner call returning is_owner:true).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": ["/app/backend/tests/test_owner_recovery.py", "/app/test_reports/pytest/pytest_results.xml"],
+  "action_items": [],
+  "critical_code_review_comments": [],
+  "updated_files": ["/app/backend/tests/test_owner_recovery.py"],
+  "success_rate": {"backend": "100% (7/7)", "frontend": "100% (4/4)"},
+  "test_credentials": "Master recovery code: recover-john; Admin PIN: 9876; PAC: any 6 digits (used 1..6). Preserved as-is.",
+  "seed_data_creation": "None; used TEST_-prefixed transient device_ids for recovery sessions (no persistent seed).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Owner recovery works end-to-end. Gate remains OFF (enabled:false, has_owner:true). Recovery code is 'recover-john'. Tests are idempotent and can be re-run; they don't change the recovery code value.",
+  "rca of the issue": "N/A - no bugs found. Feature verified working."
+}
