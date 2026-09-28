@@ -1303,7 +1303,4 @@ if os.path.exists(frontend_dir):
     # Catch-all route to serve the Expo web app (handles client-side routing)
     @app.get("/{full_path:path}")
     async def serve_frontend(full_path: str):
-        file_path = os.path.join(frontend_dir, full_path)
-        if os.path.exists(file_path) and os.path.isfile(file_path):
-            return FileResponse(file_path)
-        return FileResponse(os.path.join(frontend_dir, "index.html"))
+        
