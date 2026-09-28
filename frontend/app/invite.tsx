@@ -1,4 +1,3 @@
-// Invite gate screen — shown when the invite gate is on and this device
 // has no valid token. User enters a 4-digit PIN issued by the owner. On
 // success the PIN is burnt server-side and a device token is stored, so
 // they never see this screen again on this phone.
@@ -220,3 +219,4 @@ const styles = StyleSheet.create({
   recoverBtnText: { color: "#fff", fontSize: 14, fontWeight: "900" },
   recoverCancel: { color: "#8E8E93", fontSize: 13, fontWeight: "700", textAlign: "center", marginTop: 12 },
 });
+
